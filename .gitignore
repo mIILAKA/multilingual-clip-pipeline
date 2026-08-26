@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Local media and generated artifacts
+media/
+work/
+output/
+*.mp4
+*.mkv
+*.webm
+*.wav
+
+# Credentials
+.env
+.env.*
+!.env.example
+*token*.json
+*credentials*.json
+*client_secret*.json
+*.pem
+*.key
+cookies.txt
+*.cookies.txt

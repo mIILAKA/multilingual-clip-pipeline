@@ -1,0 +1,42 @@
+{
+  "title": "Synthetic multilingual clip",
+  "language": "en",
+  "cuts": [
+    {
+      "source": "media/synthetic-source.mp4",
+      "start": 10.0,
+      "end": 18.0
+    },
+    {
+      "source": "media/synthetic-source.mp4",
+      "start": 24.0,
+      "end": 31.0
+    }
+  ],
+  "subtitles": [
+    {
+      "start": 10.8,
+      "end": 12.8,
+      "text": "I finally found the answer.",
+      "track": "speaker-a"
+    },
+    {
+      "start": 13.0,
+      "end": 15.2,
+      "text": "やっと答えが見つかった。",
+      "track": "translation"
+    },
+    {
+      "start": 24.5,
+      "end": 28.2,
+      "text": "The workflow checks timing before export.",
+      "track": "speaker-a"
+    },
+    {
+      "start": 27.2,
+      "end": 30.0,
+      "text": "書き出す前に時刻を検査する。",
+      "track": "translation"
+    }
+  ]
+}
