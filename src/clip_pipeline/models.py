@@ -22,7 +22,7 @@ class Cut:
         return self.end - self.start
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "Cut":
+    def from_dict(cls, value: dict[str, Any]) -> Cut:
         """JSON互換の辞書からカットを生成する。"""
 
         return cls(
@@ -48,7 +48,7 @@ class Subtitle:
         return self.end - self.start
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "Subtitle":
+    def from_dict(cls, value: dict[str, Any]) -> Subtitle:
         """JSON互換の辞書から字幕を生成する。"""
 
         return cls(
@@ -69,7 +69,7 @@ class Project:
     subtitles: tuple[Subtitle, ...]
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "Project":
+    def from_dict(cls, value: dict[str, Any]) -> Project:
         """JSON互換の辞書からプロジェクトを生成する。"""
 
         return cls(

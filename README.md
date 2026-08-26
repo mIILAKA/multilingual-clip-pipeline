@@ -12,7 +12,7 @@
 
 ## 30秒で分かる特徴
 
-- **順序をコード化**: 分散していた工程を、飛ばせないワークフローとして定義
+- **順序をコード化**: 分散していた工程と承認条件を、明示的なワークフローとして定義
 - **失敗を早く見つける**: 読速、短すぎる字幕、カット外字幕、字幕・カットの重複を自動検出
 - **人の判断を残す**: 1080pプレビューを確認するまで最終書き出し工程を出さない
 - **再現可能**: 著作物を使わない合成JSON・合成動画・失敗例を含むテストを同梱
@@ -52,7 +52,7 @@ clip-pipeline plan --approved-for-final
 ## クイックスタート
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/mIILAKA/multilingual-clip-pipeline.git
 cd multilingual-clip-pipeline
 python -m pip install -e ".[dev]"
 python -m pytest -q
@@ -64,7 +64,7 @@ clip-pipeline demo
 期待される結果:
 
 ```text
-8 passed
+15 passed
 OK: Synthetic multilingual clip — 検査項目に問題はありません
 STOP: 最終書き出しには人の承認が必要です
 OK: output/synthetic-demo.mp4 (15.00 秒)
@@ -72,6 +72,8 @@ OK: output/synthetic-demo.mp4 (15.00 秒)
 
 `demo` はカラーバーと正弦波から32秒の合成ソースを作り、JSONで指定した2区間を
 15秒のMP4へ結合します。実在の動画や音声はダウンロードしません。
+生成先は指定した `--root` 配下の `media/` と `output/` に制限され、既存ファイルは
+既定で上書きしません。デモを再生成するときだけ `clip-pipeline demo --force` を使います。
 
 ## 公開版で再現できる検査
 
@@ -109,7 +111,7 @@ src/clip_pipeline/
   validation.py   # 副作用のない品質検査
   workflow.py     # 人の承認ゲートを含む工程定義
   render.py       # 合成ソース生成・カット結合・尺取得
-  cli.py          # validate / plan コマンド
+  cli.py          # validate / plan / demo コマンド
 examples/
   project.json    # 著作物を含まない合成サンプル
 tests/            # 正常系・複数の失敗系・承認ゲートのテスト
@@ -131,3 +133,7 @@ AIが生成したコードも、動作確認と失敗例のテストを通し、
 - Faster-Whisperを差し替え可能にする音声認識アダプター
 - 検査結果のJSON出力
 - 複数ソース動画を扱うレンダリングアダプター
+
+## ライセンス
+
+[MIT License](LICENSE) で公開しています。

@@ -6,7 +6,7 @@ The production workspace contains source media, derived frames, transcripts, cha
 speaker profiles, publishing metadata, and credentials stored outside the repository. None of those
 belong in a recruiting sample.
 
-This public edition therefore keeps only three transferable ideas:
+This public edition therefore keeps only four transferable ideas:
 
 1. a small, explicit data model for cuts and subtitles;
 2. deterministic validation that has no media or network dependency;
@@ -60,6 +60,9 @@ proving that structured cut data controls a real media operation. The demo:
 4. uses ffprobe to verify the final duration.
 
 No remote content is downloaded. Generated media is ignored by Git.
+The CLI resolves paths before writing, confines synthetic input and output to the selected root's
+`media/` and `output/` directories, and refuses to overwrite existing files unless `--force` is
+explicitly supplied. Synthetic generation is capped at five minutes and subprocesses have timeouts.
 
 ## 6. Failure strategy
 

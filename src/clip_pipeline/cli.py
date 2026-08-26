@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from .io import load_project
-from .render import create_synthetic_source, probe_duration, render_project, resolve_sources
+from .render import (
+    create_synthetic_source,
+    probe_duration,
+    render_project,
+    resolve_sources,
+)
 from .validation import validate_project
 from .workflow import build_workflow
 
@@ -29,14 +34,19 @@ def _parser() -> argparse.ArgumentParser:
     demo.add_argument("--project", type=Path, default=Path("examples/project.json"))
     demo.add_argument("--root", type=Path, default=Path("."))
     demo.add_argument("--output", type=Path, default=Path("output/synthetic-demo.mp4"))
+    demo.add_argument("--force", action="store_true", help="既存のデモ成果物を上書きする")
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """CLIを実行し、成功時0・検査失敗時1を返す。"""
+def _within(path: Path, parent: Path) -> bool:
+    """解決済みパスが許可ディレクトリ内にあるかを返す。"""
 
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
+    return path.resolve().is_relative_to(parent.resolve())
+
+
+def _main(argv: Sequence[str] | None = None) -> int:
+    """CLI本体を実行する。"""
+
     args = _parser().parse_args(argv)
     if args.command == "validate":
         project = load_project(args.project)
@@ -55,15 +65,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             for issue in issues:
                 print(f"{issue.severity.upper()} [{issue.code}] {issue.message}")
             return 1
-        resolved = resolve_sources(project, args.root.resolve())
+        root = args.root.resolve()
+        resolved = resolve_sources(project, root)
         sources = {cut.source for cut in resolved.cuts}
         if len(sources) != 1:
             print("ERROR: 合成デモは1つのソース動画だけを扱います")
             return 1
-        source = next(iter(sources))
-        create_synthetic_source(source, duration=max(cut.end for cut in resolved.cuts) + 1.0)
-        output = args.output if args.output.is_absolute() else args.root / args.output
-        render_project(resolved, output)
+        source = next(iter(sources)).resolve()
+        media_root = (root / "media").resolve()
+        if not _within(source, media_root):
+            raise ValueError(f"ソース動画は {media_root} の中に置いてください")
+        output = (args.output if args.output.is_absolute() else root / args.output).resolve()
+        output_root = (root / "output").resolve()
+        if not _within(output, output_root):
+            raise ValueError(f"出力動画は {output_root} の中に置いてください")
+        if source.exists() and not args.force:
+            raise FileExistsError(f"既存ファイルは上書きしません: {source}")
+        if output.exists() and not args.force:
+            raise FileExistsError(f"既存ファイルは上書きしません: {output}")
+        create_synthetic_source(
+            source,
+            duration=max(cut.end for cut in resolved.cuts) + 1.0,
+            overwrite=args.force,
+        )
+        render_project(resolved, output, overwrite=args.force)
         print(f"OK: {output} ({probe_duration(output):.2f} 秒)")
         return 0
 
@@ -74,6 +99,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.approved_for_final:
         print("STOP: 最終書き出しには人の承認が必要です")
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLIを実行し、成功時0・検査失敗時1・実行エラー時2を返す。"""
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+    try:
+        return _main(argv)
+    except (
+        FileExistsError,
+        FileNotFoundError,
+        KeyError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

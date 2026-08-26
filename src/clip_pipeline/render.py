@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,26 +19,40 @@ def _require_binary(name: str) -> str:
     return executable
 
 
-def _run(command: list[str]) -> None:
+MAX_SYNTHETIC_DURATION = 300.0
+
+
+def _run(command: list[str], *, timeout: float = 120.0) -> None:
     """外部コマンドを実行し、失敗時に読める例外を送出する。"""
 
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError("外部コマンドが制限時間を超えました") from error
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()[-8:]
         raise RuntimeError("外部コマンドに失敗しました:\n" + "\n".join(detail))
 
 
-def create_synthetic_source(path: Path, *, duration: float) -> None:
+def create_synthetic_source(
+    path: Path, *, duration: float, overwrite: bool = False
+) -> None:
     """テストパターンと正弦波だけで合成ソース動画を生成する。"""
 
-    if duration <= 0:
-        raise ValueError("duration は0より大きい必要があります")
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError("duration は有限かつ0より大きい必要があります")
+    if duration > MAX_SYNTHETIC_DURATION:
+        raise ValueError(f"duration の上限は {MAX_SYNTHETIC_DURATION:.0f} 秒です")
+    if path.exists() and not overwrite:
+        raise FileExistsError(f"既存ファイルは上書きしません: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
     _run(
         [
@@ -45,7 +60,7 @@ def create_synthetic_source(path: Path, *, duration: float) -> None:
             "-hide_banner",
             "-loglevel",
             "error",
-            "-y",
+            "-y" if overwrite else "-n",
             "-f",
             "lavfi",
             "-i",
@@ -84,17 +99,31 @@ def resolve_sources(project: Project, root: Path) -> Project:
     return Project(project.title, project.language, cuts, project.subtitles)
 
 
-def render_project(project: Project, output: Path) -> None:
+def render_project(project: Project, output: Path, *, overwrite: bool = False) -> None:
     """1つのソースから指定カットを切り出し、順番どおりに結合する。"""
 
     if not project.cuts:
         raise ValueError("1つ以上のカットが必要です")
+    if len(project.cuts) > 100:
+        raise ValueError("カット数の上限は100件です")
+    if any(
+        not math.isfinite(cut.start)
+        or not math.isfinite(cut.end)
+        or cut.start < 0
+        or cut.end <= cut.start
+        for cut in project.cuts
+    ):
+        raise ValueError("カットの開始・終了時刻が不正です")
     sources = {cut.source.resolve() for cut in project.cuts}
     if len(sources) != 1:
         raise ValueError("公開デモのレンダラーは1つのソース動画だけを扱います")
     source = next(iter(sources))
     if not source.exists():
         raise FileNotFoundError(source)
+    if output.resolve() == source:
+        raise ValueError("入力動画と出力動画には別のパスを指定してください")
+    if output.exists() and not overwrite:
+        raise FileExistsError(f"既存ファイルは上書きしません: {output}")
 
     filters: list[str] = []
     inputs: list[str] = []
@@ -120,7 +149,7 @@ def render_project(project: Project, output: Path) -> None:
             "-hide_banner",
             "-loglevel",
             "error",
-            "-y",
+            "-y" if overwrite else "-n",
             "-i",
             str(source),
             "-filter_complex",
@@ -162,5 +191,6 @@ def probe_duration(path: Path) -> float:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        timeout=30.0,
     )
     return float(result.stdout.strip())

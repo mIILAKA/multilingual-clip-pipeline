@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 import unicodedata
+from itertools import combinations, pairwise
 
 from .models import Cut, Project, Subtitle, ValidationIssue
 
@@ -18,9 +20,15 @@ def display_width(text: str) -> float:
 
 
 def _inside_any_cut(subtitle: Subtitle, cuts: tuple[Cut, ...]) -> bool:
-    """字幕が少なくとも1つの採用カットと交差するかを返す。"""
+    """字幕全体が少なくとも1つの有効な採用カット内にあるかを返す。"""
 
-    return any(subtitle.start < cut.end and subtitle.end > cut.start for cut in cuts)
+    return any(
+        math.isfinite(cut.start)
+        and math.isfinite(cut.end)
+        and cut.start <= subtitle.start
+        and subtitle.end <= cut.end
+        for cut in cuts
+    )
 
 
 def validate_project(
@@ -31,25 +39,64 @@ def validate_project(
 ) -> list[ValidationIssue]:
     """制作事故につながる構造上の問題を決定的に検査する。"""
 
+    if not math.isfinite(max_reading_speed) or max_reading_speed <= 0:
+        raise ValueError("max_reading_speed は有限の正数である必要があります")
+    if not math.isfinite(min_subtitle_duration) or min_subtitle_duration <= 0:
+        raise ValueError("min_subtitle_duration は有限の正数である必要があります")
+
     issues: list[ValidationIssue] = []
 
+    if not project.title.strip():
+        issues.append(ValidationIssue("missing-title", "title が空です"))
+    if not project.cuts:
+        issues.append(ValidationIssue("missing-cuts", "1つ以上のカットが必要です"))
+    if len(project.cuts) > 100:
+        issues.append(ValidationIssue("too-many-cuts", "カット数の上限は100件です"))
+    if len(project.subtitles) > 5_000:
+        issues.append(ValidationIssue("too-many-subtitles", "字幕数の上限は5,000件です"))
+
     for index, cut in enumerate(project.cuts):
-        if cut.start < 0 or cut.end <= cut.start:
+        if (
+            not math.isfinite(cut.start)
+            or not math.isfinite(cut.end)
+            or cut.start < 0
+            or cut.end <= cut.start
+        ):
             issues.append(
                 ValidationIssue("invalid-cut", f"cut[{index}] の開始・終了時刻が不正です")
             )
 
-    for index, (current, following) in enumerate(zip(project.cuts, project.cuts[1:])):
-        if current.source == following.source and following.start < current.end:
+    for (left_index, left), (right_index, right) in combinations(
+        enumerate(project.cuts), 2
+    ):
+        valid_times = all(
+            math.isfinite(value)
+            for value in (left.start, left.end, right.start, right.end)
+        )
+        overlaps = left.start < right.end and right.start < left.end
+        if valid_times and left.source == right.source and overlaps:
             issues.append(
                 ValidationIssue(
                     "overlapping-cuts",
-                    f"cut[{index}] と cut[{index + 1}] が重複しています",
+                    f"cut[{left_index}] と cut[{right_index}] が重複しています",
                 )
             )
 
     for index, subtitle in enumerate(project.subtitles):
-        if subtitle.duration < min_subtitle_duration:
+        valid_times = (
+            math.isfinite(subtitle.start)
+            and math.isfinite(subtitle.end)
+            and subtitle.start >= 0
+            and subtitle.end > subtitle.start
+        )
+        if not valid_times:
+            issues.append(
+                ValidationIssue(
+                    "invalid-subtitle",
+                    f"subtitle[{index}] の開始・終了時刻が不正です",
+                )
+            )
+        elif subtitle.duration < min_subtitle_duration:
             issues.append(
                 ValidationIssue(
                     "short-subtitle",
@@ -65,7 +112,18 @@ def validate_project(
                 )
             )
 
-        if not _inside_any_cut(subtitle, project.cuts):
+        if not subtitle.text.strip():
+            issues.append(
+                ValidationIssue("empty-subtitle", f"subtitle[{index}] の本文が空です")
+            )
+        elif len(subtitle.text) > 500:
+            issues.append(
+                ValidationIssue(
+                    "subtitle-too-long", f"subtitle[{index}] の本文が500文字を超えています"
+                )
+            )
+
+        if not valid_times or not _inside_any_cut(subtitle, project.cuts):
             issues.append(
                 ValidationIssue(
                     "subtitle-outside-cuts",
@@ -78,8 +136,14 @@ def validate_project(
         by_track.setdefault(subtitle.track, []).append((index, subtitle))
     for track, rows in by_track.items():
         rows.sort(key=lambda item: item[1].start)
-        for (left_index, left), (right_index, right) in zip(rows, rows[1:]):
-            if right.start < left.end:
+        for (left_index, left), (right_index, right) in pairwise(rows):
+            if (
+                all(
+                    math.isfinite(value)
+                    for value in (left.start, left.end, right.start, right.end)
+                )
+                and right.start < left.end
+            ):
                 issues.append(
                     ValidationIssue(
                         "overlapping-subtitles",
