@@ -11,6 +11,17 @@
 > このリポジトリは、実運用システムから公開可能な設計だけを抽出したサニタイズ版です。
 > 著作物、実際の動画、チャンネル運用データ、認証情報、タレント固有データは含みません。
 
+## はじめに：何を見られるか
+
+| 読みたい内容 | 入口 |
+| --- | --- |
+| 制作上の問題と、私が確認・修正を依頼した経験 | [背景と課題](#背景と課題) |
+| 話者判別に関する私の判断と、AIによる試作の限界 | [話者判別のケーススタディ](docs/speaker-diarization-case-study.md) |
+| 公開コードで試せる検査と合成動画デモ | [検査の例](#検査の例)・[クイックスタート](#クイックスタート) |
+| AIと私の役割 | [AI支援開発について](#ai支援開発について) |
+
+関連作品：[Stream Insight Pipeline](https://github.com/mIILAKA/stream-insight-pipeline) は、架空の配信データを集計・検査する別のサンプルです。
+
 ## 30秒で分かる特徴
 
 - **順序をコード化**: 分散していた工程と承認条件を、明示的なワークフローとして定義
@@ -105,6 +116,32 @@ OK: output/synthetic-demo.mp4 (15.00 秒)
 公開版では、第三者のコンテンツや個人の運用情報を必要とせず再現できるコアに絞っています。
 字幕の翻訳品質や内容の正確さは判定しません。音声認識・話者判別・自動翻訳・
 字幕の映像への焼き込みも公開版には含まれていません。
+
+## 検査の例
+
+公開版の検査は、入力された字幕とカットの時刻を条件と照らし合わせます。例えば、
+採用カットが10〜20秒、字幕が11〜11.5秒の場合、字幕の表示時間は0.5秒です。
+既定の最短表示時間0.8秒より短いため、`short-subtitle` が返ります。
+
+次は合成データだけを使う例です。クイックスタートのインストール後に実行できます。
+
+```python
+from pathlib import Path
+from clip_pipeline.models import Cut, Project, Subtitle
+from clip_pipeline.validation import validate_project
+
+project = Project(
+    title="Synthetic",
+    language="en",
+    cuts=(Cut(Path("synthetic.mp4"), 10.0, 20.0),),
+    subtitles=(Subtitle(11.0, 11.5, "短い字幕"),),
+)
+print([issue.code for issue in validate_project(project)])
+# ['short-subtitle']
+```
+
+この検査に動画ファイルは不要です。表示時間の条件を確認するもので、字幕の意味や
+翻訳が正しいこと、実際に視聴者が読めたことは保証しません。
 
 ## E2Eデモで確認できること
 
