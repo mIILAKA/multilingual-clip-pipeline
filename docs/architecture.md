@@ -10,7 +10,7 @@ This public edition therefore keeps only four transferable ideas:
 
 1. a small, explicit data model for cuts and subtitles;
 2. deterministic validation that has no media or network dependency;
-3. a workflow in which final rendering is unavailable until human review is approved;
+3. a workflow plan that lists final stages only when an approval flag is supplied;
 4. an FFmpeg E2E path that renders only synthetic media.
 
 The included example is synthetic. File paths and dialogue do not refer to a real creator or video.
@@ -22,13 +22,13 @@ variables, call a model, invoke FFmpeg, or mutate project files. This makes fail
 keeps model inference and rendering at the edges of the system.
 
 ```text
-ASR / diarization / translation
-                  ↓ adapters
+ASR / diarization / translation (not included)
+                  ↓ potential adapters
           Project data model
                   ↓
      deterministic validation core
                   ↓
-       review and publishing gates
+       review and publishing (not enforced here)
                   ↓
        FFmpeg rendering adapter
 ```
@@ -47,7 +47,9 @@ faithful, that a joke still works after editing, or that a clip represents the s
 The workflow therefore treats machine validation as necessary but insufficient.
 
 The default plan stops after `human-review`. `render-final` and `sync-manifest` are added only when
-`approved_for_final=True` is explicit.
+`approved_for_final=True` is explicit. This controls the displayed stage list only. It does not
+verify that a person reviewed a preview, and it does not enforce final rendering or publishing.
+The separate synthetic demo can run without approval.
 
 ## 5. Synthetic E2E rendering
 
@@ -68,6 +70,6 @@ explicitly supplied. Synthetic generation is capped at five minutes and subproce
 
 - Structural errors are returned as stable issue codes.
 - Independent errors are collected in one pass so the editor can fix them together.
-- Final rendering is gated instead of relying on a warning message.
+- The plan labels human review, but enforcement is outside this public sample.
 - Tests include both a clean public example and a project with multiple simultaneous failures.
 - An integration test renders a real MP4 and checks its duration within an encoding tolerance.
